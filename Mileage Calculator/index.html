@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tovar Mileage Calculator</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .custom-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+        /* Spinner for logging button */
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen py-8">
+    <div class="w-full max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 md:p-8">
+        
+        <header class="mb-6 text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Tovar Mileage Calculator</h1>
+            <p class="text-gray-500 mt-1">Log your trips and calculate the total mileage.</p>
+        </header>
+
+        <main>
+            <!-- Input Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="startLocation" class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                    <select id="startLocation" class="custom-select w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                </div>
+                <div>
+                    <label for="endLocation" class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                    <select id="endLocation" class="custom-select w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></select>
+                </div>
+            </div>
+
+            <button id="addLegBtn" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                Add Trip Leg
+            </button>
+
+            <!-- Trip Summary -->
+            <div class="mt-8">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-xl font-semibold text-gray-800">Trip Summary</h2>
+                    <button id="resetBtn" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">Reset</button>
+                </div>
+
+                <div id="tripLegsContainer" class="space-y-2 mb-4 text-gray-600">
+                     <p class="text-center text-gray-400 p-4" id="placeholder">No trips added yet.</p>
+                </div>
+
+                <div id="totalMileageContainer" class="bg-gray-50 p-4 rounded-lg flex justify-between items-center mt-6">
+                    <span class="text-lg font-bold text-gray-800">Total Mileage:</span>
+                    <span id="totalMileage" class="text-2xl font-bold text-indigo-600">0.0 miles</span>
+                </div>
+                 <div id="errorMessage" class="text-red-500 text-sm mt-2 text-center hidden"></div>
+            </div>
+
+            <!-- Log to Google Sheet -->
+            <div class="mt-6 border-t pt-6">
+                 <button id="logTripBtn" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    Log Trip to Google Sheet
+                </button>
+                <div id="logStatus" class="text-sm mt-2 text-center"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwoTjgKjnIZbmAadVAJb7t7fLsO_ia75mDuSpCjstVFZuCFZDYEUahmdG7hz8RL1m6mDA/exec';
+        
+        const mileageData = {
+            "Collins to Collins": 0.0, "Collins to Bates": 1.7, "Collins to Bentley": 2.2, "Collins to Carlton": 1.7, "Collins to Horace Mann": 0.7, "Collins to Saltonstall": 1.2, "Collins to WHES": 1.5, "Collins to SHS": 0.7,
+            "Bates to Collins": 1.7, "Bates to Bates": 0.0, "Bates to Bentley": 2.3, "Bates to Carlton": 1.6, "Bates to Horace Mann": 2.2, "Bates to Saltonstall": 1.8, "Bates to WHES": 2.1, "Bates to SHS": 2.2,
+            "Bentley to Collins": 2.2, "Bentley to Bates": 2.3, "Bentley to Bentley": 0.0, "Bentley to Carlton": 0.9, "Bentley to Horace Mann": 2.8, "Bentley to Saltonstall": 1.5, "Bentley to WHES": 3.0, "Bentley to SHS": 2.8,
+            "Carlton to Collins": 1.7, "Carlton to Bates": 1.6, "Carlton to Bentley": 0.9, "Carlton to Carlton": 0.0, "Carlton to Horace Mann": 2.4, "Carlton to Saltonstall": 1.4, "Carlton to WHES": 2.5, "Carlton to SHS": 2.4,
+            "Horace Mann to Collins": 0.7, "Horace Mann to Bates": 2.2, "Horace Mann to Bentley": 2.8, "Horace Mann to Carlton": 2.4, "Horace Mann to Horace Mann": 0.0, "Horace Mann to Saltonstall": 1.7, "Horace Mann to WHES": 1.3, "Horace Mann to SHS": "N/A",
+            "Saltonstall to Collins": 1.2, "Saltonstall to Bates": 1.8, "Saltonstall to Bentley": 1.5, "Saltonstall to Carlton": 1.4, "Saltonstall to Horace Mann": 1.7, "Saltonstall to Saltonstall": 0.0, "Saltonstall to WHES": 2.5, "Saltonstall to SHS": 1.7,
+            "WHES to Collins": 1.5, "WHES to Bates": 2.1, "WHES to Bentley": 3.0, "WHES to Carlton": 2.5, "WHES to Horace Mann": 1.3, "WHES to Saltonstall": 2.5, "WHES to WHES": 0.0, "WHES to SHS": 1.3,
+            "SHS to Collins": 0.7, "SHS to Bates": 2.2, "SHS to Bentley": 2.8, "SHS to Carlton": 2.4, "SHS to Horace Mann": "N/A", "SHS to Saltonstall": 1.7, "SHS to WHES": 1.3, "SHS to SHS": 0.0
+        };
+
+        const startLocationSelect = document.getElementById('startLocation');
+        const endLocationSelect = document.getElementById('endLocation');
+        const addLegBtn = document.getElementById('addLegBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const logTripBtn = document.getElementById('logTripBtn');
+        const tripLegsContainer = document.getElementById('tripLegsContainer');
+        const totalMileageEl = document.getElementById('totalMileage');
+        const errorMessageEl = document.getElementById('errorMessage');
+        const placeholderEl = document.getElementById('placeholder');
+        const logStatusEl = document.getElementById('logStatus');
+
+        let tripLegs = [];
+        let totalMileage = 0;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const locations = [...new Set(Object.keys(mileageData).flatMap(key => key.split(' to ')))];
+            locations.sort();
+            locations.forEach(location => {
+                startLocationSelect.add(new Option(location, location));
+                endLocationSelect.add(new Option(location, location));
+            });
+            endLocationSelect.selectedIndex = 1;
+        });
+
+        addLegBtn.addEventListener('click', addTripLeg);
+        resetBtn.addEventListener('click', resetTrip);
+        logTripBtn.addEventListener('click', logTripToSheet);
+
+        function addTripLeg() {
+            const start = startLocationSelect.value;
+            const end = endLocationSelect.value;
+            const key = `${start} to ${end}`;
+            const mileage = mileageData[key];
+            hideError();
+            if (mileage === undefined || mileage === "N/A") {
+                showError(`Mileage from ${start} to ${end} is not available.`);
+                return;
+            }
+            tripLegs.push({ start, end, mileage });
+            totalMileage += mileage;
+            updateUI();
+            
+            // Set the start of the next leg to the end of the current one
+            startLocationSelect.value = end;
+            
+            // Reset the end location to a default, ensuring it's not the same as the new start
+            if (startLocationSelect.selectedIndex === 1) {
+                endLocationSelect.selectedIndex = 0; // If new start is default end, pick another default
+            } else {
+                endLocationSelect.selectedIndex = 1; // Otherwise, use the standard default
+            }
+        }
+
+        function resetTrip() {
+            tripLegs = [];
+            totalMileage = 0;
+            updateUI();
+            hideError();
+            logStatusEl.innerHTML = '';
+        }
+
+        function updateUI() {
+            if (tripLegs.length === 0) {
+                 placeholderEl.classList.remove('hidden');
+                 tripLegsContainer.innerHTML = '';
+                 tripLegsContainer.appendChild(placeholderEl);
+                 logTripBtn.disabled = true;
+            } else {
+                 placeholderEl.classList.add('hidden');
+                 tripLegsContainer.innerHTML = tripLegs.map((leg, index) => `
+                    <div class="flex justify-between items-center p-2 rounded-md ${index % 2 === 0 ? 'bg-gray-50' : ''}">
+                        <span class="truncate">${leg.start} → ${leg.end}</span>
+                        <span class="font-medium text-gray-800">${leg.mileage.toFixed(1)} mi</span>
+                    </div>
+                `).join('');
+                logTripBtn.disabled = false;
+            }
+            totalMileageEl.textContent = `${totalMileage.toFixed(1)} miles`;
+        }
+
+        function logTripToSheet() {
+            const originalButtonText = 'Log Trip to Google Sheet';
+            logTripBtn.disabled = true;
+            logTripBtn.innerHTML = '<div class="loader"></div><span class="ml-2">Logging...</span>';
+            logStatusEl.textContent = '';
+            
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors', // This prevents CORS errors by not reading the response
+                headers: {
+                    'Content-Type': 'text/plain;charset=utf-8',
+                },
+                body: JSON.stringify({ legs: tripLegs })
+            })
+            .then(res => {
+                // In 'no-cors' mode, we can't read the server's response.
+                // We assume success if the fetch promise resolves without a network error.
+                logStatusEl.textContent = 'Trip logged successfully!';
+                logStatusEl.className = 'text-sm mt-2 text-center text-green-600';
+                resetTrip();
+            })
+            .catch(error => {
+                // This will now only catch network-level errors (e.g., user is offline).
+                console.error('Error:', error);
+                logStatusEl.textContent = `Error: ${error.message}. Could not send data.`;
+                logStatusEl.className = 'text-sm mt-2 text-center text-red-600';
+            })
+            .finally(() => {
+                logTripBtn.disabled = false;
+                logTripBtn.innerHTML = originalButtonText;
+            });
+        }
+        
+        function showError(message) {
+            errorMessageEl.textContent = message;
+            errorMessageEl.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorMessageEl.textContent = '';
+            errorMessageEl.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
+
